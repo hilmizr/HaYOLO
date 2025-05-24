@@ -435,33 +435,18 @@ class GhostBottleneck(nn.Module):
             s (int): Stride.
         """
         super().__init__()
-        k = int(k)  # Ensure kernel size is integer
         c_ = c2 // 2
-        
-        # Make sure GhostConv and DWConv handle kernel size similarly
         self.conv = nn.Sequential(
-            GhostConv(c1, c_, ksize=1, stride=1),  # pointwise conv (pw)
-            DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # depthwise conv (dw)
-            GhostConv(c_, c2, ksize=1, stride=1, act=False),  # pointwise linear conv (pw-linear)
+            GhostConv(c1, c_, 1, 1),  # pw
+            DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
+            GhostConv(c_, c2, 1, 1, act=False),  # pw-linear
         )
-        
         self.shortcut = (
-            nn.Sequential(
-                DWConv(c1, c1, k, s, act=False),  # dw conv on shortcut path if stride 2
-                Conv(c1, c2, ksize=1, stride=1, act=False)
-            ) if s == 2 else nn.Identity()
+            nn.Sequential(DWConv(c1, c1, k, s, act=False), Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
         )
 
     def forward(self, x):
-        """
-        Forward pass with residual connection.
-
-        Args:
-            x (torch.Tensor): Input tensor.
-
-        Returns:
-            torch.Tensor: Output tensor.
-        """
+        """Apply skip connection and concatenation to input tensor."""
         return self.conv(x) + self.shortcut(x)
 
 
