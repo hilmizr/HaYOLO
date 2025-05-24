@@ -59,6 +59,11 @@ from .block import (
     ResNetLayer,
     SCDown,
     TorchVision,
+    # GS-related modules
+    GSBottleneck,
+    GSBottleneckC,
+    VoVGSCSP,
+    VoVGSCSPC
 )
 from .conv import (
     CBAM,
@@ -77,11 +82,7 @@ from .conv import (
     SpatialAttention,
     # GS-related modules
     GSConv,
-    GSConvns,
-    GSBottleneck,
-    GSBottleneckC,
-    VoVGSCSP,
-    VoVGSCSPC
+    GSConvns
 )
 from .head import (
     OBB,
