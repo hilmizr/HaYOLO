@@ -452,7 +452,7 @@ class GhostBottleneck(nn.Module):
 
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
-
+    
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
         """
         Initialize a standard bottleneck module.
@@ -467,8 +467,19 @@ class Bottleneck(nn.Module):
         """
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, k[0], 1)
-        self.cv2 = Conv(c_, c2, k[1], 1, g=g)
+
+        # Cast kernel sizes to int or tuple of ints
+        def to_int_tuple(kv):
+            if isinstance(kv, (list, tuple)):
+                return tuple(int(x) for x in kv)
+            else:
+                return int(kv)
+
+        k0 = to_int_tuple(k[0])
+        k1 = to_int_tuple(k[1])
+
+        self.cv1 = Conv(c1, c_, k0, 1)
+        self.cv2 = Conv(c_, c2, k1, 1, g=g)
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
