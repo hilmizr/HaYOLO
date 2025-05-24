@@ -435,24 +435,39 @@ class GhostBottleneck(nn.Module):
             s (int): Stride.
         """
         super().__init__()
+        k = int(k)  # Ensure kernel size is integer
         c_ = c2 // 2
+        
+        # Make sure GhostConv and DWConv handle kernel size similarly
         self.conv = nn.Sequential(
-            GhostConv(c1, c_, 1, 1),  # pw
-            DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
-            GhostConv(c_, c2, 1, 1, act=False),  # pw-linear
+            GhostConv(c1, c_, ksize=1, stride=1),  # pointwise conv (pw)
+            DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # depthwise conv (dw)
+            GhostConv(c_, c2, ksize=1, stride=1, act=False),  # pointwise linear conv (pw-linear)
         )
+        
         self.shortcut = (
-            nn.Sequential(DWConv(c1, c1, k, s, act=False), Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
+            nn.Sequential(
+                DWConv(c1, c1, k, s, act=False),  # dw conv on shortcut path if stride 2
+                Conv(c1, c2, ksize=1, stride=1, act=False)
+            ) if s == 2 else nn.Identity()
         )
 
     def forward(self, x):
-        """Apply skip connection and concatenation to input tensor."""
+        """
+        Forward pass with residual connection.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
         return self.conv(x) + self.shortcut(x)
 
 
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
-    
+
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
         """
         Initialize a standard bottleneck module.
@@ -467,19 +482,8 @@ class Bottleneck(nn.Module):
         """
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
-
-        # Cast kernel sizes to int or tuple of ints
-        def to_int_tuple(kv):
-            if isinstance(kv, (list, tuple)):
-                return tuple(int(x) for x in kv)
-            else:
-                return int(kv)
-
-        k0 = to_int_tuple(k[0])
-        k1 = to_int_tuple(k[1])
-
-        self.cv1 = Conv(c1, c_, k0, 1)
-        self.cv2 = Conv(c_, c2, k1, 1, g=g)
+        self.cv1 = Conv(c1, c_, k[0], 1)
+        self.cv2 = Conv(c_, c2, k[1], 1, g=g)
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
