@@ -75,6 +75,13 @@ from .conv import (
     LightConv,
     RepConv,
     SpatialAttention,
+    # GS-related modules
+    GSConv,
+    GSConvns,
+    GSBottleneck,
+    GSBottleneckC,
+    VoVGSCSP,
+    VoVGSCSPC
 )
 from .head import (
     OBB,
@@ -179,4 +186,11 @@ __all__ = (
     "TorchVision",
     "Index",
     "A2C2f",
+    # GS-related modules
+    "GSConv",
+    "GSConvns",
+    "GSBottleneck",
+    "GSBottleneckC",
+    "VoVGSCSP",
+    "VoVGSCSPC"
 )
