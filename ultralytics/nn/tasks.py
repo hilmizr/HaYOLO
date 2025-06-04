@@ -1500,6 +1500,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 legacy = False
         elif m is AIFI:
             args = [ch[f], *args]
+        elif m is CBAM:                          # NEW
+            c1 = ch[f]                           # input channels after width scaling
+            args = [c1] + args                   # pass it to CBAM
+            c2 = c1                              # output channels stay the same
         elif m in frozenset({HGStem, HGBlock}):
             c1, cm, c2 = ch[f], args[0], args[1]
             args = [c1, cm, c2, *args[2:]]
