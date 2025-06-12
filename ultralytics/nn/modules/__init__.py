@@ -63,7 +63,9 @@ from .block import (
     GSBottleneck,
     GSBottleneckC,
     VoVGSCSP,
-    VoVGSCSPC
+    VoVGSCSPC,
+    ASPP,
+    RFB
 )
 from .conv import (
     CBAM,
@@ -194,4 +196,6 @@ __all__ = (
     "GSBottleneckC",
     "VoVGSCSP",
     "VoVGSCSPC"
+    "ASPP",
+    "RFB"
 )

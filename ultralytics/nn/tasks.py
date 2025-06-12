@@ -24,6 +24,8 @@ from ultralytics.nn.modules import (
     SPP,
     SPPELAN,
     SPPF,
+    ASPP,
+    RFB,
     A2C2f,
     AConv,
     ADown,
@@ -1441,7 +1443,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             GSBottleneck,
             GSBottleneckC,
             VoVGSCSP,
-            VoVGSCSPC
+            VoVGSCSPC,
+            ASPP,
+            RFB
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
