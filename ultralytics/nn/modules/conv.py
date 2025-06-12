@@ -6,6 +6,7 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F  
 
 __all__ = (
     "Conv",
@@ -739,14 +740,20 @@ class GSConv(nn.Module):
 
 
 class GSConvns(GSConv):
-    # GSConv with a normative-shuffle https://github.com/AlanLi1997/slim-neck-by-gsconv
+    # GSConv with normative shuffle
     def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
-        super().__init__(c1, c2, k=1, s=1, g=1, act=True)
+        super().__init__(c1, c2, k=k, s=s, g=g, act=act)
         c_ = c2 // 2
         self.shuf = nn.Conv2d(c_ * 2, c2, 1, 1, 0, bias=False)
+        self.act  = nn.ReLU(inplace=True) if act else nn.Identity()
 
     def forward(self, x):
         x1 = self.cv1(x)
         x2 = torch.cat((x1, self.cv2(x1)), 1)
-        # normative-shuffle, TRT supported
-        return nn.ReLU(self.shuf(x2))
+
+        # normative channel-shuffle (optional but kept for TRT-friendly order)
+        b, c, h, w = x2.size()
+        x2 = x2.reshape(b, 2, c // 2, h, w)
+        x2 = torch.cat((x2[:, 0], x2[:, 1]), 1)
+
+        return self.act(self.shuf(x2)) 
