@@ -51,7 +51,10 @@ __all__ = (
     "SCDown",
     "TorchVision",
     "ASPP",
-    "RFB"
+    "RFB",
+    "C3GS",
+    "C3k2GS"
+    
 )
 
 
@@ -2016,6 +2019,62 @@ class VoVGSCSPC(VoVGSCSP):
         super().__init__(c1, c2)
         c_ = int(c2 * 0.5)  # hidden channels
         self.gsb = GSBottleneckC(c_, c_, 1, 1)
+
+# ==== CSP-style stage that wraps GSBottleneck ====
+class C3GS(nn.Module):
+    """
+    CSP bottleneck module (3-conv version) whose inner blocks use GSBottleneck.
+    Mirrors the original C3 logic so it can replace it 1-for-1.
+    """
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, k=3):
+        """
+        Args:
+            c1 (int): in-channels.
+            c2 (int): out-channels.
+            n (int): number of GSBottlenecks to repeat.
+            shortcut (bool): kept for parity, ignored by GSBottleneck.
+            g (int): preserved for API parity (not used by GS blocks).
+            e (float): expansion in GSBottleneck.
+            k (int): kernel size inside GSBottleneck.
+        """
+        super().__init__()
+        c_ = int(c2 * e)         # hidden width
+        # 1) split
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c1, c_, 1, 1)
+        # 2) transform
+        self.m   = nn.Sequential(*(GSBottleneck(c_, c_, k=k, e=1.0) for _ in range(n)))
+        # 3) concat + fuse
+        self.cv3 = Conv(2 * c_, c2, 1)
+
+    def forward(self, x):
+        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
+
+
+# ==== Two-conv CSP wrapper (C2f-style) that uses the GS blocks ====
+class C3k2GS(C2f):
+    """
+    Faster 2-conv CSP stage whose inner units are either:
+        • a C3GS block (when `c3gs=True`), or
+        • a single GSBottleneck (lighter option, default).
+    Usage is identical to C3k2, so you can switch modules in a YAML
+    backbone line by name only.
+    """
+    def __init__(self,
+                 c1, c2,
+                 n=1,
+                 c3gs=False,      # analogous to original `c3k` flag
+                 e=0.5,
+                 g=1,
+                 shortcut=True,
+                 k=3):            # expose kernel size for GSBottleneck
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            C3GS(self.c, self.c, 2, shortcut, g, e=1.0, k=k) if c3gs
+            else GSBottleneck(self.c, self.c, k=k, e=1.0)
+            for _ in range(n)
+        )
+
 
 class ASPP(nn.Module):
     def __init__(self, in_channel=512, out_channel=256):

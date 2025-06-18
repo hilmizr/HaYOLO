@@ -78,7 +78,9 @@ from ultralytics.nn.modules import (
     VoVGSCSP,
     VoVGSCSPC,
     # CBAM Related modules
-    CBAM
+    CBAM,
+    C3GS,
+    C3k2GS
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1445,7 +1447,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             VoVGSCSP,
             VoVGSCSPC,
             ASPP,
-            RFB
+            RFB,
+            C3GS,
+            C3k2GS
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
@@ -1465,6 +1469,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C2fCIB,
             C2PSA,
             A2C2f,
+            C3GS,
+            C3k2GS
         }
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
