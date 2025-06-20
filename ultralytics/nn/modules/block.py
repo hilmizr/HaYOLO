@@ -41,6 +41,7 @@ __all__ = (
     "CBFuse",
     "CBLinear",
     "C3k2",
+    "C3k2Ghost",
     "C2fPSA",
     "C2PSA",
     "RepVGGDW",
@@ -2074,6 +2075,38 @@ class C3k2GS(C2f):
             else GSBottleneck(self.c, self.c, k=k, e=1.0)
             for _ in range(n)
         )
+        
+# -------------------------------------------------------------------------
+# Two-conv CSP wrapper (C2f-style) that uses Ghost blocks
+# -------------------------------------------------------------------------
+class C3k2Ghost(C2f):
+    """
+    Faster 2-conv CSP stage whose inner units are either
+        • a C3Ghost block (when `c3ghost=True`), or
+        • a single GhostBottleneck (lighter option, default).
+
+    It keeps exactly the same external API as C3k2/C3k2GS, so you can
+    replace a line in YAML with `C3k2Ghost` and nothing else changes.
+    """
+    def __init__(
+        self,
+        c1, c2,
+        n: int = 1,
+        c3ghost: bool = False,   # analogous to the `c3k`/`c3gs` flags
+        e: float = 0.5,
+        g: int = 1,
+        shortcut: bool = True,
+        k: int = 3               # kernel size for the (optional) single GhostBottleneck path
+    ):
+        super().__init__(c1, c2, n, shortcut, g, e)  # sets self.c = hidden width
+
+        # Build the sequence of inner blocks
+        self.m = nn.ModuleList(
+            C3Ghost(self.c, self.c, 2, shortcut, g, e=1.0) if c3ghost
+            else GhostBottleneck(self.c, self.c, k=k, s=1)
+            for _ in range(n)
+        )
+
 
 
 class ASPP(nn.Module):
