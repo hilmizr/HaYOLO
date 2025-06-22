@@ -68,7 +68,11 @@ from .block import (
     RFB,
     C3GS,
     C3k2GS,
-    C3k2Ghost
+    C3k2Ghost,
+    C2PSAGhost,
+    C2PSAGS,
+    C2fPSAGhost,
+    C2fPSAGS
 )
 from .conv import (
     CBAM,
@@ -203,5 +207,9 @@ __all__ = (
     "RFB",
     "C3GS",
     "C3k2GS",
-    "C3k2Ghost"
+    "C3k2Ghost",
+    "C2PSAGhost",
+    "C2PSAGS",
+    "C2fPSAGhost",
+    "C2fPSAGS"
 )

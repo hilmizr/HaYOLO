@@ -55,7 +55,10 @@ __all__ = (
     "RFB",
     "C3GS",
     "C3k2GS"
-    
+    "C2PSAGhost",
+    "C2PSAGS",
+    "C2fPSAGhost",
+    "C2fPSAGS"
 )
 
 
@@ -2196,3 +2199,103 @@ class RFB(nn.Module):
         out = self.relu(out)
 
         return out
+
+# ─── Ghost-flavoured feed-forward ────────────────────────────────────────────
+class GhostFFN(nn.Sequential):
+    """1×1 → 2×w → 1×1 feed-forward realised with GhostConv."""
+    def __init__(self, c):
+        assert c % 2 == 0, "GhostConv needs even channel counts."
+        super().__init__(
+            GhostConv(c, 2 * c, 1, 1),   # expansion
+            GhostConv(2 * c, c, 1, 1, act=False)  # projection
+        )
+
+class PSABlockGhost(nn.Module):
+    """PSABlock whose FFN path uses GhostConv (attention part is unchanged)."""
+    def __init__(self, c, attn_ratio=0.5, num_heads=4, shortcut=True):
+        super().__init__()
+        self.attn = Attention(c, attn_ratio=attn_ratio, num_heads=num_heads)
+        self.ffn  = GhostFFN(c)
+        self.add  = shortcut
+    def forward(self, x):
+        x = x + self.attn(x) if self.add else self.attn(x)
+        x = x + self.ffn(x)  if self.add else self.ffn(x)
+        return x
+
+
+# ─── GS-flavoured feed-forward ───────────────────────────────────────────────
+class GSFFN(nn.Sequential):
+    """1×1 → 2×w → 1×1 feed-forward realised with GSConv."""
+    def __init__(self, c):
+        super().__init__(
+            GSConv(c, 2 * c, 1, 1),
+            GSConv(2 * c, c, 1, 1, act=False)
+        )
+
+class PSABlockGS(nn.Module):
+    """PSABlock whose FFN path uses GSConv."""
+    def __init__(self, c, attn_ratio=0.5, num_heads=4, shortcut=True):
+        super().__init__()
+        self.attn = Attention(c, attn_ratio=attn_ratio, num_heads=num_heads)
+        self.ffn  = GSFFN(c)
+        self.add  = shortcut
+    def forward(self, x):
+        x = x + self.attn(x) if self.add else self.attn(x)
+        x = x + self.ffn(x)  if self.add else self.ffn(x)
+        return x
+
+class C2PSAGhost(nn.Module):
+    """GhostConv version of C2PSA (same API)."""
+    def __init__(self, c1, c2, n=1, e=0.5):
+        super().__init__()
+        assert c1 == c2 and c1 % 2 == 0
+        self.c  = int(c1 * e)
+        self.cv1 = GhostConv(c1, 2 * self.c, 1, 1)
+        self.cv2 = GhostConv(2 * self.c, c1, 1, 1, act=False)
+        self.m   = nn.Sequential(*(PSABlockGhost(self.c,
+                                                 attn_ratio=0.5,
+                                                 num_heads=self.c // 64)
+                                   for _ in range(n)))
+    def forward(self, x):
+        a, b = self.cv1(x).split((self.c, self.c), 1)
+        b = self.m(b)
+        return self.cv2(torch.cat((a, b), 1))
+
+
+class C2PSAGS(nn.Module):
+    """GSConv version of C2PSA (same API)."""
+    def __init__(self, c1, c2, n=1, e=0.5):
+        super().__init__()
+        assert c1 == c2
+        self.c  = int(c1 * e)
+        self.cv1 = GSConv(c1, 2 * self.c, 1, 1)
+        self.cv2 = GSConv(2 * self.c, c1, 1, 1, act=False)
+        self.m   = nn.Sequential(*(PSABlockGS(self.c,
+                                              attn_ratio=0.5,
+                                              num_heads=self.c // 64)
+                                   for _ in range(n)))
+    def forward(self, x):
+        a, b = self.cv1(x).split((self.c, self.c), 1)
+        b = self.m(b)
+        return self.cv2(torch.cat((a, b), 1))
+
+class C2fPSAGhost(C2f):
+    """GhostConv version of C2fPSA (inherits two-conv CSP wrapper)."""
+    def __init__(self, c1, c2, n=1, e=0.5):
+        super().__init__(c1, c2, n=n, e=e)       # sets self.c
+        self.m = nn.ModuleList(PSABlockGhost(self.c,
+                                             attn_ratio=0.5,
+                                             num_heads=self.c // 64)
+                               for _ in range(n))
+
+
+class C2fPSAGS(C2f):
+    """GSConv version of C2fPSA."""
+    def __init__(self, c1, c2, n=1, e=0.5):
+        super().__init__(c1, c2, n=n, e=e)
+        self.m = nn.ModuleList(PSABlockGS(self.c,
+                                          attn_ratio=0.5,
+                                          num_heads=self.c // 64)
+                               for _ in range(n))
+
+
