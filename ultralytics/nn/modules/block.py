@@ -58,7 +58,9 @@ __all__ = (
     "C2PSAGhost",
     "C2PSAGS",
     "C2fPSAGhost",
-    "C2fPSAGS"
+    "C2fPSAGS",
+    "C2PSACBAM",
+    "C2fPSACBAM"
 )
 
 
@@ -2298,4 +2300,65 @@ class C2fPSAGS(C2f):
                                           num_heads=self.c // 64)
                                for _ in range(n))
 
+class C2PSACBAM(nn.Module):
+    """
+    C2PSA augmented with CBAM gating on the PSA branch.
+    Call signature matches C2PSA: (c1, c2, n=1, e=0.5)
+    """
+    def __init__(self, c1: int, c2: int, n: int = 1, e: float = 0.5,
+                 cbam_kernel: int = 7):
+        super().__init__()
+        assert c1 == c2, "CSP requires equal in/out channels"
+        self.c = int(c1 * e)
 
+        # split & fuse 1×1 convs (kept as plain Conv; swap for Ghost/GS if desired)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv(2 * self.c, c1, 1, 1)
+
+        # PSA depth
+        self.psa_stack = nn.Sequential(
+            *(PSABlock(self.c, attn_ratio=0.5, num_heads=self.c // 64)
+              for _ in range(n))
+        )
+
+        # CBAM gate working on the PSA branch only
+        self.cbam = CBAM(self.c, kernel_size=cbam_kernel)
+
+    def forward(self, x):
+        a, b = self.cv1(x).split((self.c, self.c), dim=1)  # CSP split
+        b = self.psa_stack(b)                              # global attention
+        b = self.cbam(b)                                   # channel+spatial gate
+        return self.cv2(torch.cat((a, b), 1))              # fuse
+
+class C2fPSACBAM(C2f):
+    """
+    • Outer scaffold: the two-conv CSP shell from C2f  (cv1 → chunks → cv2)
+    • Inner ops   : PSABlock (conv-MHSA-FFN) repeated n times on the B-branch
+    • Extra gate  : one CBAM (channel + spatial) applied **after** those PSA
+                    blocks, still only on the B-branch, to re-weight the
+                    newly mixed global-context features.
+    Call signature: (c1, c2, n=1, e=0.5, cbam_kernel=7)
+    """
+    def __init__(self,
+                 c1: int, c2: int,
+                 n: int = 1,
+                 e: float = 0.5,
+                 cbam_kernel: int = 7):
+        super().__init__(c1, c2, n=n, e=e)        # sets self.c, self.cv1, self.cv2, self.n
+        # replace C2f’s default Bottlenecks with PSA blocks
+        self.m = nn.ModuleList(
+            PSABlock(self.c,
+                     attn_ratio=0.5,
+                     num_heads=self.c // 64)
+            for _ in range(n)
+        )
+        # one inexpensive CBAM gate for the PSA branch
+        self.cbam = CBAM(self.c, kernel_size=cbam_kernel)
+
+    # -- forward identical to C2f, except we CBAM-gate the PSA branch  -------
+    def forward(self, x):
+        y = [self.cv1(x)]                   # y[0]  = A branch
+        for i in range(self.n):             # y[1:] = B branch after PSA blocks
+            y.append(self.m[i](y[-1]))
+        y[-1] = self.cbam(y[-1])            # apply CBAM only to the PSA-processed chunk
+        return self.cv2(torch.cat(y, 1))    # fuse & return

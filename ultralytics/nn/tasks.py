@@ -1485,7 +1485,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C2PSAGhost,
             C2PSAGS,
             C2fPSAGhost,
-            C2fPSAGS
+            C2fPSAGS,
+            C2PSACBAM,
+            C2fPSACBAM
         }
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args

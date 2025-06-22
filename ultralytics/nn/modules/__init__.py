@@ -211,5 +211,7 @@ __all__ = (
     "C2PSAGhost",
     "C2PSAGS",
     "C2fPSAGhost",
-    "C2fPSAGS"
+    "C2fPSAGS",
+    "C2PSACBAM",
+    "C2fPSACBAM"
 )
