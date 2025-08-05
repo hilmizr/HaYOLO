@@ -25,7 +25,7 @@ import torch
 import tqdm
 
 from ultralytics import __version__
-from ultralytics.utils.patches import imread, imshow, imwrite, torch_load, torch_save  # for patches
+from ultralytics.utils.patches import imread, imshow, imwrite, torch_save  # for patches
 
 # PyTorch Multi-GPU DDP Constants
 RANK = int(os.getenv("RANK", -1))
@@ -178,7 +178,7 @@ class TQDM(rich.tqdm if TQDM_RICH else tqdm.tqdm):
             ...     pass
         """
         warnings.filterwarnings("ignore", category=tqdm.TqdmExperimentalWarning)  # suppress tqdm.rich warning
-        kwargs["disable"] = not VERBOSE or kwargs.get("disable", False)
+        kwargs["disable"] = not VERBOSE or kwargs.get("disable", False) or LOGGER.getEffectiveLevel() > 20
         kwargs.setdefault("bar_format", TQDM_BAR_FORMAT)  # override default value if passed
         super().__init__(*args, **kwargs)
 
@@ -255,11 +255,8 @@ class DataExportMixin:
         Notes:
             Requires `lxml` package to be installed.
         """
-        from ultralytics.utils.checks import check_requirements
-
-        check_requirements("lxml")
         df = self.to_df(normalize=normalize, decimals=decimals)
-        return '<?xml version="1.0" encoding="utf-8"?>\n<root></root>' if df.empty else df.to_xml()
+        return '<?xml version="1.0" encoding="utf-8"?>\n<root></root>' if df.empty else df.to_xml(parser="etree")
 
     def to_html(self, normalize=False, decimals=5, index=False):
         """
@@ -1039,7 +1036,7 @@ def get_user_config_dir(sub_dir="Ultralytics"):
     # GCP and AWS lambda fix, only /tmp is writeable
     if not is_dir_writeable(path.parent):
         LOGGER.warning(
-            f"user config directory '{path}' is not writeable, defaulting to '/tmp' or CWD."
+            f"user config directory '{path}' is not writeable, defaulting to '/tmp' or CWD. "
             "Alternatively you can define a YOLO_CONFIG_DIR environment variable for this path."
         )
         path = Path("/tmp") / sub_dir if is_dir_writeable("/tmp") else Path().cwd() / sub_dir
@@ -1596,7 +1593,6 @@ TESTS_RUNNING = is_pytest_running() or is_github_action_running()
 set_sentry()
 
 # Apply monkey patches
-torch.load = torch_load
 torch.save = torch_save
 if WINDOWS:
     # Apply cv2 patches for non-ASCII and non-UTF characters in image paths
